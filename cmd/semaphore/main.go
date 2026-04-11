@@ -11,7 +11,6 @@ import (
 	"github.com/knightlesssword/semaphore/internal/config"
 	"github.com/knightlesssword/semaphore/internal/server"
 	"github.com/knightlesssword/semaphore/internal/store"
-	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -27,23 +26,37 @@ func main() {
 	logger := buildLogger(cfg)
 	logger.Info("semaphore starting", "version", "dev")
 
+	var deps server.Deps
+
 	// Connect to Redis only when rate limiting is enabled.
-	var rdb *redis.Client
 	if cfg.RateLimit.Enabled {
-		rdb, err = store.NewRedisClient(&cfg.Redis)
+		rdb, err := store.NewRedisClient(&cfg.Redis)
 		if err != nil {
 			logger.Error("failed to connect to Redis", "addr", cfg.Redis.Addr, "err", err)
 			os.Exit(1)
 		}
 		logger.Info("redis connected", "addr", cfg.Redis.Addr)
 		defer rdb.Close()
+		deps.Redis = rdb
+	}
+
+	// Connect to Postgres when explicitly enabled.
+	if cfg.Postgres.Enabled {
+		pg, err := store.NewPostgresStore(&cfg.Postgres, logger)
+		if err != nil {
+			logger.Error("failed to connect to Postgres", "err", err)
+			os.Exit(1)
+		}
+		logger.Info("postgres connected")
+		defer pg.Close()
+		deps.Postgres = pg
 	}
 
 	// Root context cancelled on SIGINT / SIGTERM
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	srv := server.New(cfg, rdb, logger)
+	srv := server.New(cfg, deps, logger)
 	if err := srv.Start(ctx); err != nil {
 		logger.Error("server exited with error", "err", err)
 		os.Exit(1)

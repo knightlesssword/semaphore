@@ -64,7 +64,8 @@ type RedisConfig struct {
 }
 
 type PostgresConfig struct {
-	DSN string `mapstructure:"dsn"`
+	Enabled bool   `mapstructure:"enabled"`
+	DSN     string `mapstructure:"dsn"`
 }
 
 type LogConfig struct {
@@ -87,6 +88,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("rate_limit.tokens_per_day", 0)
 	v.SetDefault("redis.addr", "localhost:6379")
 	v.SetDefault("redis.db", 0)
+	v.SetDefault("postgres.enabled", false)
 	v.SetDefault("postgres.dsn", "postgres://semaphore:semaphore@localhost:5432/semaphore?sslmode=disable")
 	v.SetDefault("auth.bypass", false)
 	v.SetDefault("proxy.default_provider", "openai")

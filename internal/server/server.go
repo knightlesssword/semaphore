@@ -10,6 +10,7 @@ import (
 	"github.com/knightlesssword/semaphore/internal/config"
 	"github.com/knightlesssword/semaphore/internal/middleware"
 	"github.com/knightlesssword/semaphore/internal/proxy"
+	"github.com/knightlesssword/semaphore/internal/store"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -19,25 +20,42 @@ type Server struct {
 	logger *slog.Logger
 }
 
+// Deps bundles optional infrastructure clients.
+// Fields are nil when the corresponding subsystem is disabled.
+type Deps struct {
+	Redis    *redis.Client
+	Postgres *store.PostgresStore
+}
+
 // New wires the mux, middleware chain, and proxy handler.
-// rdb may be nil when rate limiting is disabled; the middleware will no-op.
-func New(cfg *config.Config, rdb *redis.Client, logger *slog.Logger) *Server {
+func New(cfg *config.Config, deps Deps, logger *slog.Logger) *Server {
 	mux := http.NewServeMux()
 
 	// Health check — unauthenticated, but still panic-safe
 	mux.HandleFunc("GET /healthz", handleHealthz)
 
-	// Proxy — protected by the full middleware chain
-	keyStore := middleware.NewStaticKeyStore(cfg.Auth.StaticKeys)
+	// Key store: Postgres if available, static fallback.
+	var keyStore middleware.KeyStore
+	if deps.Postgres != nil {
+		keyStore = store.NewPostgresKeyStore(deps.Postgres)
+	} else {
+		keyStore = middleware.NewStaticKeyStore(cfg.Auth.StaticKeys)
+	}
 
 	chain := []middleware.Middleware{
 		middleware.RequestID(),
 		middleware.Auth(keyStore, cfg.Auth.Bypass, logger),
 	}
 
-	if cfg.RateLimit.Enabled && rdb != nil {
-		rl := middleware.NewRateLimiter(rdb, &cfg.RateLimit, logger)
+	if cfg.RateLimit.Enabled && deps.Redis != nil {
+		rl := middleware.NewRateLimiter(deps.Redis, &cfg.RateLimit, logger)
 		chain = append(chain, middleware.RateLimit(rl))
+	}
+
+	if deps.Postgres != nil {
+		al := middleware.NewAuditLogger(deps.Postgres, logger)
+		al.Start(context.Background())
+		chain = append(chain, middleware.Audit(al, cfg.Proxy.DefaultProvider))
 	}
 
 	protected := middleware.Chain(chain...)

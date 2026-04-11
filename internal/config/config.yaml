@@ -42,6 +42,7 @@ redis:
   db: 0
 
 postgres:
+  enabled: false   # set true to enable audit logging + PostgresKeyStore (requires running Postgres)
   dsn: "postgres://semaphore:semaphore@localhost:5432/semaphore?sslmode=disable"
 
 log:

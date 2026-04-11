@@ -7,15 +7,30 @@ import (
 	"strings"
 )
 
+const ctxKeyID contextKey = "key_id"
+
 // KeyStore is the interface the auth middleware depends on.
-// Phase 3 uses StaticKeyStore (keys from config).
+// Phase 3/4 uses StaticKeyStore (keys from config).
 // Phase 5 swaps in a PostgresKeyStore (keys from the api_keys table).
+// Validate returns the key's identifier (UUID string for Postgres, raw key for static)
+// so downstream middleware (e.g. audit logging) can reference the key without
+// re-reading the Authorization header.
 type KeyStore interface {
-	Validate(ctx context.Context, rawKey string) bool
+	Validate(ctx context.Context, rawKey string) (keyID string, ok bool)
+}
+
+// GetKeyID retrieves the validated key ID stored by the Auth middleware.
+// Returns "" when auth is bypassed or the key has no associated ID.
+func GetKeyID(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxKeyID).(string); ok {
+		return v
+	}
+	return ""
 }
 
 // Auth validates the Authorization: Bearer <key> header on every request.
-// On success it passes through. On failure it returns 401.
+// On success it stores the key ID in context and passes through.
+// On failure it returns 401.
 // If bypass is true (dev mode), all requests are allowed without a key.
 func Auth(store KeyStore, bypass bool, logger *slog.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
@@ -35,7 +50,8 @@ func Auth(store KeyStore, bypass bool, logger *slog.Logger) Middleware {
 				return
 			}
 
-			if !store.Validate(r.Context(), key) {
+			keyID, ok := store.Validate(r.Context(), key)
+			if !ok {
 				logger.Warn("auth: invalid API key",
 					"request_id", GetRequestID(r.Context()),
 					"path", r.URL.Path,
@@ -44,7 +60,8 @@ func Auth(store KeyStore, bypass bool, logger *slog.Logger) Middleware {
 				return
 			}
 
-			next.ServeHTTP(w, r)
+			ctx := context.WithValue(r.Context(), ctxKeyID, keyID)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
@@ -91,7 +108,12 @@ func NewStaticKeyStore(keys []string) *StaticKeyStore {
 	return &StaticKeyStore{keys: m}
 }
 
-func (s *StaticKeyStore) Validate(_ context.Context, rawKey string) bool {
+// Validate checks whether rawKey is in the static key set.
+// Returns the raw key as the ID (static keys have no UUID).
+func (s *StaticKeyStore) Validate(_ context.Context, rawKey string) (string, bool) {
 	_, ok := s.keys[rawKey]
-	return ok
+	if !ok {
+		return "", false
+	}
+	return rawKey, true
 }
