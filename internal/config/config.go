@@ -9,10 +9,18 @@ import (
 
 type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
+	Auth     AuthConfig     `mapstructure:"auth"`
 	Proxy    ProxyConfig    `mapstructure:"proxy"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	Postgres PostgresConfig `mapstructure:"postgres"`
 	Log      LogConfig      `mapstructure:"log"`
+}
+
+// AuthConfig controls the auth middleware.
+// In Phase 3 keys are listed here. Phase 5 moves validation to Postgres.
+type AuthConfig struct {
+	Bypass     bool     `mapstructure:"bypass"`      // true = skip auth (dev only)
+	StaticKeys []string `mapstructure:"static_keys"` // valid Bearer tokens
 }
 
 type ProxyConfig struct {
@@ -61,6 +69,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("redis.addr", "localhost:6379")
 	v.SetDefault("redis.db", 0)
 	v.SetDefault("postgres.dsn", "postgres://semaphore:semaphore@localhost:5432/semaphore?sslmode=disable")
+	v.SetDefault("auth.bypass", false)
 	v.SetDefault("proxy.default_provider", "openai")
 	v.SetDefault("proxy.timeout_seconds", 120)
 	v.SetDefault("log.level", "info")

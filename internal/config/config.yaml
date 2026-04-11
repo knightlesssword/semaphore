@@ -3,6 +3,11 @@ server:
   port: 8080
   shutdown_timeout_seconds: 15
 
+auth:
+  bypass: false        # set true to skip auth entirely (local dev only)
+  static_keys:         # Phase 3: valid Bearer tokens; Phase 5 moves this to Postgres
+    - "dev-key-local"
+
 proxy:
   default_provider: "anthropic"
   timeout_seconds: 120
@@ -13,7 +18,7 @@ proxy:
     anthropic:
       base_url: "https://api.anthropic.com"
       api_key: ""        # set via SEMAPHORE_PROXY_PROVIDERS_ANTHROPIC_API_KEY or here
-      default_model: "claude-opus-4-6"  # overrides whatever model the client sends
+      default_model: "claude-sonnet-4-6"  # overrides whatever model the client sends
     ollama:
       base_url: "http://localhost:11434"
       default_model: ""  # e.g. "llama3.2" — leave empty to use client-supplied model

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/knightlesssword/semaphore/internal/config"
+	"github.com/knightlesssword/semaphore/internal/middleware"
 	"github.com/knightlesssword/semaphore/internal/proxy"
 )
 
@@ -20,16 +21,24 @@ type Server struct {
 func New(cfg *config.Config, logger *slog.Logger) *Server {
 	mux := http.NewServeMux()
 
-	// Health check — no auth, no middleware
+	// Health check — unauthenticated, but still panic-safe
 	mux.HandleFunc("GET /healthz", handleHealthz)
 
-	// Proxy — OpenAI-compatible chat completions endpoint
+	// Proxy — protected by the full middleware chain
+	keyStore := middleware.NewStaticKeyStore(cfg.Auth.StaticKeys)
+	protected := middleware.Chain(
+		middleware.RequestID(),
+		middleware.Auth(keyStore, cfg.Auth.Bypass, logger),
+	)
 	proxyHandler := proxy.NewHandler(cfg, logger)
-	mux.Handle("POST /v1/chat/completions", proxyHandler)
+	mux.Handle("POST /v1/chat/completions", protected(proxyHandler))
+
+	// Recover wraps the entire mux — catches panics in any route
+	handler := middleware.Recover(logger)(mux)
 
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 90 * time.Second,
 		IdleTimeout:  120 * time.Second,
