@@ -23,6 +23,19 @@ proxy:
       base_url: "http://localhost:11434"
       default_model: ""  # e.g. "llama3.2" — leave empty to use client-supplied model
 
+rate_limit:
+  enabled: false                # set true to enforce limits (requires Redis)
+  requests_per_minute: 60       # default limit applied to all keys
+  tokens_per_day: 0             # 0 = unlimited; enforced in Phase 5 (needs token counts)
+  # Named tiers (optional overrides — wired to keys in Phase 5/9):
+  # tiers:
+  #   free:
+  #     requests_per_minute: 20
+  #     tokens_per_day: 10000
+  #   pro:
+  #     requests_per_minute: 120
+  #     tokens_per_day: 500000
+
 redis:
   addr: "localhost:6379"
   password: ""

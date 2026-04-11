@@ -10,6 +10,7 @@ import (
 	"github.com/knightlesssword/semaphore/internal/config"
 	"github.com/knightlesssword/semaphore/internal/middleware"
 	"github.com/knightlesssword/semaphore/internal/proxy"
+	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
@@ -18,7 +19,9 @@ type Server struct {
 	logger *slog.Logger
 }
 
-func New(cfg *config.Config, logger *slog.Logger) *Server {
+// New wires the mux, middleware chain, and proxy handler.
+// rdb may be nil when rate limiting is disabled; the middleware will no-op.
+func New(cfg *config.Config, rdb *redis.Client, logger *slog.Logger) *Server {
 	mux := http.NewServeMux()
 
 	// Health check — unauthenticated, but still panic-safe
@@ -26,10 +29,18 @@ func New(cfg *config.Config, logger *slog.Logger) *Server {
 
 	// Proxy — protected by the full middleware chain
 	keyStore := middleware.NewStaticKeyStore(cfg.Auth.StaticKeys)
-	protected := middleware.Chain(
+
+	chain := []middleware.Middleware{
 		middleware.RequestID(),
 		middleware.Auth(keyStore, cfg.Auth.Bypass, logger),
-	)
+	}
+
+	if cfg.RateLimit.Enabled && rdb != nil {
+		rl := middleware.NewRateLimiter(rdb, &cfg.RateLimit, logger)
+		chain = append(chain, middleware.RateLimit(rl))
+	}
+
+	protected := middleware.Chain(chain...)
 	proxyHandler := proxy.NewHandler(cfg, logger)
 	mux.Handle("POST /v1/chat/completions", protected(proxyHandler))
 

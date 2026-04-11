@@ -8,12 +8,13 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Auth     AuthConfig     `mapstructure:"auth"`
-	Proxy    ProxyConfig    `mapstructure:"proxy"`
-	Redis    RedisConfig    `mapstructure:"redis"`
-	Postgres PostgresConfig `mapstructure:"postgres"`
-	Log      LogConfig      `mapstructure:"log"`
+	Server    ServerConfig    `mapstructure:"server"`
+	Auth      AuthConfig      `mapstructure:"auth"`
+	Proxy     ProxyConfig     `mapstructure:"proxy"`
+	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+	Redis     RedisConfig     `mapstructure:"redis"`
+	Postgres  PostgresConfig  `mapstructure:"postgres"`
+	Log       LogConfig       `mapstructure:"log"`
 }
 
 // AuthConfig controls the auth middleware.
@@ -41,6 +42,21 @@ type ServerConfig struct {
 	ShutdownTimeout int    `mapstructure:"shutdown_timeout_seconds"`
 }
 
+// RateLimitConfig controls the sliding-window rate limiter (Phase 4).
+// Limits are enforced per authenticated API key.
+type RateLimitConfig struct {
+	Enabled           bool             `mapstructure:"enabled"`
+	RequestsPerMinute int              `mapstructure:"requests_per_minute"` // default tier
+	TokensPerDay      int              `mapstructure:"tokens_per_day"`      // 0 = unlimited
+	Tiers             map[string]Tier  `mapstructure:"tiers"`               // named tier overrides
+}
+
+// Tier holds per-tier rate limit values.
+type Tier struct {
+	RequestsPerMinute int `mapstructure:"requests_per_minute"`
+	TokensPerDay      int `mapstructure:"tokens_per_day"` // 0 = unlimited
+}
+
 type RedisConfig struct {
 	Addr     string `mapstructure:"addr"`
 	Password string `mapstructure:"password"`
@@ -66,6 +82,9 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("server.host", "0.0.0.0")
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.shutdown_timeout_seconds", 15)
+	v.SetDefault("rate_limit.enabled", false)
+	v.SetDefault("rate_limit.requests_per_minute", 60)
+	v.SetDefault("rate_limit.tokens_per_day", 0)
 	v.SetDefault("redis.addr", "localhost:6379")
 	v.SetDefault("redis.db", 0)
 	v.SetDefault("postgres.dsn", "postgres://semaphore:semaphore@localhost:5432/semaphore?sslmode=disable")
