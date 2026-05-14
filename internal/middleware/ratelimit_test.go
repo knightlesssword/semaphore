@@ -29,7 +29,7 @@ func newTestLimiter(t *testing.T, rpm int) (*middleware.RateLimiter, *miniredis.
 		Enabled:           true,
 		RequestsPerMinute: rpm,
 	}
-	return middleware.NewRateLimiter(rdb, cfg, noopLogger()), mr
+	return middleware.NewRateLimiter(rdb, cfg, nil, noopLogger()), mr
 }
 
 // requestWithBearer builds a POST request with an Authorization header.

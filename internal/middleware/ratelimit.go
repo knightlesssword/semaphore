@@ -14,6 +14,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// TierStore is the subset of store.PostgresStore needed for tier lookups.
+type TierStore interface {
+	GetKeyTier(ctx context.Context, apiKeyID string) (string, error)
+}
+
 // slidingWindowScript atomically:
 //   1. Removes entries older than the window.
 //   2. Counts remaining entries.
@@ -58,12 +63,14 @@ return {1, count + 1, 0}
 type RateLimiter struct {
 	rdb    *redis.Client
 	cfg    *config.RateLimitConfig
+	tiers  TierStore // optional; nil = always use default limit
 	logger *slog.Logger
 }
 
 // NewRateLimiter creates a RateLimiter. rdb must already be connected.
-func NewRateLimiter(rdb *redis.Client, cfg *config.RateLimitConfig, logger *slog.Logger) *RateLimiter {
-	return &RateLimiter{rdb: rdb, cfg: cfg, logger: logger}
+// tiers may be nil — when nil, all keys use the default requests_per_minute limit.
+func NewRateLimiter(rdb *redis.Client, cfg *config.RateLimitConfig, tiers TierStore, logger *slog.Logger) *RateLimiter {
+	return &RateLimiter{rdb: rdb, cfg: cfg, tiers: tiers, logger: logger}
 }
 
 // RateLimit returns a Middleware that enforces per-key sliding-window limits.
@@ -79,7 +86,7 @@ func RateLimit(rl *RateLimiter) Middleware {
 				return
 			}
 
-			limit := rl.limitForKey(key)
+			limit := rl.limitForKey(r.Context(), GetKeyID(r.Context()))
 			if limit <= 0 {
 				// Unlimited
 				next.ServeHTTP(w, r)
@@ -142,10 +149,19 @@ func (rl *RateLimiter) check(ctx context.Context, key string, limit int) (allowe
 	return allowedInt == 1, int(countInt), retryInt, nil
 }
 
-// limitForKey returns the requests-per-minute limit for the given key.
-// Phase 4 uses a single default limit for all keys.
-// Phase 5/9 can extend this with per-key tier lookup from Postgres.
-func (rl *RateLimiter) limitForKey(_ string) int {
+// limitForKey resolves the requests-per-minute limit for a key.
+// If a TierStore is available, looks up the key's tier and checks for a
+// tier-specific override in config. Falls back to the default limit.
+// Returns 0 for unlimited.
+func (rl *RateLimiter) limitForKey(ctx context.Context, keyID string) int {
+	if rl.tiers != nil && keyID != "" {
+		tier, err := rl.tiers.GetKeyTier(ctx, keyID)
+		if err == nil && tier != "" {
+			if t, ok := rl.cfg.Tiers[tier]; ok && t.RequestsPerMinute > 0 {
+				return t.RequestsPerMinute
+			}
+		}
+	}
 	return rl.cfg.RequestsPerMinute
 }
 

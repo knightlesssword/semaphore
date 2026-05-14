@@ -53,7 +53,11 @@ func New(cfg *config.Config, deps Deps, logger *slog.Logger) *Server {
 	}
 
 	if cfg.RateLimit.Enabled && deps.Redis != nil {
-		rl := middleware.NewRateLimiter(deps.Redis, &cfg.RateLimit, logger)
+		var tiers middleware.TierStore
+		if deps.Postgres != nil {
+			tiers = deps.Postgres
+		}
+		rl := middleware.NewRateLimiter(deps.Redis, &cfg.RateLimit, tiers, logger)
 		chain = append(chain, middleware.RateLimit(rl))
 	}
 
