@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/knightlesssword/semaphore/internal/config"
+	"github.com/knightlesssword/semaphore/internal/middleware"
 	"github.com/knightlesssword/semaphore/internal/store"
 )
 
@@ -205,7 +206,5 @@ func jsonOK(w http.ResponseWriter, v any) {
 }
 
 func jsonErr(w http.ResponseWriter, msg string, code int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	fmt.Fprintf(w, `{"error":{"message":%q,"code":%d}}`, msg, code)
+	middleware.WriteError(w, msg, code, middleware.SourceSemaphore)
 }

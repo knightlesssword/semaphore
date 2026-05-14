@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/knightlesssword/semaphore/internal/config"
+	"github.com/knightlesssword/semaphore/internal/middleware"
 	"github.com/knightlesssword/semaphore/internal/proxy/providers"
 )
 
@@ -162,11 +163,13 @@ func (h *Handler) modifyResponse(resp *http.Response) error {
 
 func (h *Handler) errorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	h.logger.Error("upstream error", "err", err, "path", r.URL.Path)
-	jsonError(w, "upstream request failed", http.StatusBadGateway)
+	jsonProviderError(w, "upstream request failed", http.StatusBadGateway)
 }
 
 func jsonError(w http.ResponseWriter, msg string, code int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	fmt.Fprintf(w, `{"error":{"message":%q,"code":%d}}`, msg, code)
+	middleware.WriteError(w, msg, code, middleware.SourceSemaphore)
+}
+
+func jsonProviderError(w http.ResponseWriter, msg string, code int) {
+	middleware.WriteError(w, msg, code, middleware.SourceProvider)
 }

@@ -6,7 +6,7 @@
 
 - [x] Phase 6 — Admin HTTP server, key management (POST /keys, GET /keys, DELETE /keys/{id}), static token auth on :9090
 - [x] Phase 7 — Token budget enforcement (daily `tokens_per_day` limit, distinct 402 error)
-- [ ] Phase 8 — Semaphore-native error codes (distinct error envelope from external provider errors)
+- [x] Phase 8 — Semaphore-native error codes (distinct error envelope from external provider errors)
 
 ---
 

@@ -19,9 +19,7 @@ func Recover(logger *slog.Logger) Middleware {
 						"method", r.Method,
 						"path", r.URL.Path,
 					)
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusInternalServerError)
-					w.Write([]byte(`{"error":{"message":"internal server error","code":500}}`))
+					WriteError(w, "internal server error", http.StatusInternalServerError, SourceSemaphore)
 				}
 			}()
 			next.ServeHTTP(w, r)

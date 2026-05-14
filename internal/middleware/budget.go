@@ -89,11 +89,8 @@ func (bc *BudgetChecker) limitForKey(ctx context.Context, keyID string) int {
 }
 
 func jsonPaymentRequired(w http.ResponseWriter, used, limit int64) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusPaymentRequired)
-	msg := fmt.Sprintf(
-		`{"error":{"message":"daily token budget exceeded — %d of %d tokens used","code":402}}`,
-		used, limit,
+	WriteError(w,
+		fmt.Sprintf("daily token budget exceeded — %d of %d tokens used", used, limit),
+		http.StatusPaymentRequired, SourceSemaphore,
 	)
-	w.Write([]byte(msg))
 }

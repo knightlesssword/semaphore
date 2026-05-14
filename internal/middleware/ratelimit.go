@@ -107,7 +107,7 @@ func RateLimit(rl *RateLimiter) Middleware {
 					"limit", limit,
 					"retry_after_sec", retryAfterSec,
 				)
-				jsonTooManyRequests(w, limit, retryAfterSec)
+				jsonTooManyRequests(w, limit)
 				return
 			}
 
@@ -166,9 +166,6 @@ func setRateLimitHeaders(w http.ResponseWriter, limit, used int) {
 	w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 }
 
-func jsonTooManyRequests(w http.ResponseWriter, limit, retryAfter int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusTooManyRequests)
-	msg := fmt.Sprintf(`{"error":{"message":"rate limit exceeded — %d req/min allowed","code":429}}`, limit)
-	w.Write([]byte(msg))
+func jsonTooManyRequests(w http.ResponseWriter, limit int) {
+	WriteError(w, fmt.Sprintf("rate limit exceeded — %d req/min allowed", limit), http.StatusTooManyRequests, SourceSemaphore)
 }

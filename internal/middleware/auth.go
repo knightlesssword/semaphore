@@ -85,9 +85,7 @@ func bearerToken(r *http.Request) (string, bool) {
 }
 
 func jsonUnauthorized(w http.ResponseWriter, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusUnauthorized)
-	w.Write([]byte(`{"error":{"message":"` + msg + `","code":401}}`))
+	WriteError(w, msg, http.StatusUnauthorized, SourceSemaphore)
 }
 
 // ── Static key store (Phase 3) ────────────────────────────────────────────
