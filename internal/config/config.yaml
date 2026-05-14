@@ -3,6 +3,11 @@ server:
   port: 8080
   shutdown_timeout_seconds: 15
 
+admin:
+  enabled: true
+  port: 9090
+  token: "test-admin-token"
+
 auth:
   bypass: false        # set true to skip auth entirely (local dev only)
   static_keys:         # Phase 3: valid Bearer tokens; Phase 5 moves this to Postgres
@@ -42,7 +47,7 @@ redis:
   db: 0
 
 postgres:
-  enabled: false   # set true to enable audit logging + PostgresKeyStore (requires running Postgres)
+  enabled: true
   dsn: "postgres://semaphore:semaphore@localhost:5432/semaphore?sslmode=disable"
 
 log:

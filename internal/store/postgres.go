@@ -188,6 +188,65 @@ func (s *PostgresStore) UpsertSpend(ctx context.Context, apiKeyID string, day ti
 	return err
 }
 
+// ── Key management ────────────────────────────────────────────────────────
+
+// KeyRow is a row from the api_keys table (raw key is never returned after creation).
+type KeyRow struct {
+	ID        string
+	Name      string
+	Tier      string
+	Owner     string
+	CreatedAt time.Time
+	RevokedAt *time.Time
+}
+
+// CreateKey inserts a new API key. rawKey is hashed; the hash is stored.
+// Returns the new UUID.
+func (s *PostgresStore) CreateKey(ctx context.Context, rawKey, name, tier, owner string) (string, error) {
+	hash := hashKey(rawKey)
+	var id string
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO api_keys (key_hash, name, tier, owner)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id::text`,
+		hash, name, tier, owner,
+	).Scan(&id)
+	return id, err
+}
+
+// RevokeKey sets revoked_at to now for the given key UUID.
+// Returns false if no such active key exists.
+func (s *PostgresStore) RevokeKey(ctx context.Context, id string) (bool, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE api_keys SET revoked_at = NOW()
+		WHERE id = $1 AND revoked_at IS NULL`, id)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// ListKeys returns all keys (active and revoked), newest first.
+func (s *PostgresStore) ListKeys(ctx context.Context) ([]KeyRow, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id::text, name, tier, owner, created_at, revoked_at
+		FROM api_keys ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var keys []KeyRow
+	for rows.Next() {
+		var k KeyRow
+		if err := rows.Scan(&k.ID, &k.Name, &k.Tier, &k.Owner, &k.CreatedAt, &k.RevokedAt); err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	return keys, rows.Err()
+}
+
 // ── PostgresKeyStore ───────────────────────────────────────────────────────
 
 // PostgresKeyStore validates API keys against the api_keys table.

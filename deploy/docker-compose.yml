@@ -5,11 +5,14 @@ services:
       dockerfile: deploy/Dockerfile
     ports:
       - "8080:8080"
+      - "9090:9090"
     environment:
       SEMAPHORE_SERVER_PORT: "8080"
       SEMAPHORE_REDIS_ADDR: "redis:6379"
       SEMAPHORE_POSTGRES_DSN: "postgres://semaphore:semaphore@postgres:5432/semaphore?sslmode=disable"
       SEMAPHORE_LOG_FORMAT: "json"
+      SEMAPHORE_ADMIN_ENABLED: "true"
+      SEMAPHORE_ADMIN_TOKEN: "test-admin-token"
     depends_on:
       redis:
         condition: service_healthy

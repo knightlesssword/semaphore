@@ -9,12 +9,21 @@ import (
 
 type Config struct {
 	Server    ServerConfig    `mapstructure:"server"`
+	Admin     AdminConfig     `mapstructure:"admin"`
 	Auth      AuthConfig      `mapstructure:"auth"`
 	Proxy     ProxyConfig     `mapstructure:"proxy"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 	Redis     RedisConfig     `mapstructure:"redis"`
 	Postgres  PostgresConfig  `mapstructure:"postgres"`
 	Log       LogConfig       `mapstructure:"log"`
+}
+
+// AdminConfig controls the admin HTTP server (port :9090 by default).
+// Secured by a static bearer token; keep out of public network interfaces.
+type AdminConfig struct {
+	Enabled bool   `mapstructure:"enabled"`
+	Port    int    `mapstructure:"port"`
+	Token   string `mapstructure:"token"` // override via SEMAPHORE_ADMIN_TOKEN
 }
 
 // AuthConfig controls the auth middleware.
@@ -90,6 +99,9 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("redis.db", 0)
 	v.SetDefault("postgres.enabled", false)
 	v.SetDefault("postgres.dsn", "postgres://semaphore:semaphore@localhost:5432/semaphore?sslmode=disable")
+	v.SetDefault("admin.enabled", false)
+	v.SetDefault("admin.port", 9090)
+	v.SetDefault("admin.token", "")
 	v.SetDefault("auth.bypass", false)
 	v.SetDefault("proxy.default_provider", "openai")
 	v.SetDefault("proxy.timeout_seconds", 120)

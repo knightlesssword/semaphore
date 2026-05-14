@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/knightlesssword/semaphore/internal/admin"
 	"github.com/knightlesssword/semaphore/internal/config"
 	"github.com/knightlesssword/semaphore/internal/server"
 	"github.com/knightlesssword/semaphore/internal/store"
@@ -55,6 +56,24 @@ func main() {
 	// Root context cancelled on SIGINT / SIGTERM
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	// Start admin server if enabled (requires Postgres).
+	if cfg.Admin.Enabled {
+		if deps.Postgres == nil {
+			logger.Error("admin server requires postgres to be enabled")
+			os.Exit(1)
+		}
+		if cfg.Admin.Token == "" {
+			logger.Error("admin.token must be set when admin server is enabled")
+			os.Exit(1)
+		}
+		adminSrv := admin.New(&cfg.Admin, deps.Postgres, logger)
+		go func() {
+			if err := adminSrv.Start(ctx); err != nil {
+				logger.Error("admin server exited with error", "err", err)
+			}
+		}()
+	}
 
 	srv := server.New(cfg, deps, logger)
 	if err := srv.Start(ctx); err != nil {
