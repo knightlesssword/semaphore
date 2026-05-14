@@ -4,7 +4,7 @@ server:
   shutdown_timeout_seconds: 15
 
 admin:
-  enabled: true
+  enabled: false         # set true to start the admin server on :9090
   port: 9090
   token: "test-admin-token"
 
@@ -47,7 +47,7 @@ redis:
   db: 0
 
 postgres:
-  enabled: true
+  enabled: false   # set true to enable audit logging + PostgresKeyStore (requires running Postgres)
   dsn: "postgres://semaphore:semaphore@localhost:5432/semaphore?sslmode=disable"
 
 log:

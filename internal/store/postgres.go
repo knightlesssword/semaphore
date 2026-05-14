@@ -276,6 +276,36 @@ func (ks *PostgresKeyStore) Validate(ctx context.Context, rawKey string) (string
 	return id, true
 }
 
+// DailyTokens returns the total tokens (prompt + completion) consumed by a key
+// on the given UTC day. Returns 0 with no error if no spend row exists yet.
+func (s *PostgresStore) DailyTokens(ctx context.Context, apiKeyID string, day time.Time) (int64, error) {
+	var total int64
+	err := s.pool.QueryRow(ctx, `
+		SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0)
+		FROM spend
+		WHERE api_key_id = $1 AND day = $2::date`,
+		apiKeyID, day.UTC().Format("2006-01-02"),
+	).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+// GetKeyTier returns the tier name for the given key UUID.
+// Returns ("default", nil) if the key is not found.
+func (s *PostgresStore) GetKeyTier(ctx context.Context, apiKeyID string) (string, error) {
+	var tier string
+	err := s.pool.QueryRow(ctx,
+		`SELECT tier FROM api_keys WHERE id = $1 AND revoked_at IS NULL`,
+		apiKeyID,
+	).Scan(&tier)
+	if err != nil {
+		return "default", nil
+	}
+	return tier, nil
+}
+
 // HashKey returns the SHA-256 hex digest of a raw API key.
 // Exported so callers can pre-hash keys for insertion.
 func HashKey(rawKey string) string { return hashKey(rawKey) }

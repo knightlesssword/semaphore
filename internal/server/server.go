@@ -47,6 +47,11 @@ func New(cfg *config.Config, deps Deps, logger *slog.Logger) *Server {
 		middleware.Auth(keyStore, cfg.Auth.Bypass, logger),
 	}
 
+	if deps.Postgres != nil && cfg.RateLimit.TokensPerDay > 0 {
+		bc := middleware.NewBudgetChecker(deps.Postgres, &cfg.RateLimit, logger)
+		chain = append(chain, middleware.BudgetCheck(bc))
+	}
+
 	if cfg.RateLimit.Enabled && deps.Redis != nil {
 		rl := middleware.NewRateLimiter(deps.Redis, &cfg.RateLimit, logger)
 		chain = append(chain, middleware.RateLimit(rl))
